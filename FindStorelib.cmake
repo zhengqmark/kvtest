@@ -44,7 +44,7 @@
 
 include (FindPackageHandleStandardArgs)
 
-find_path (STORELIB_INCLUDE store_lib_exp.h HINTS ${STORELIB_INCLUDE_DIR})
+find_path (STORELIB_INCLUDE store_lib_expo.h HINTS ${STORELIB_INCLUDE_DIR})
 find_library (STORELIB_LIBRARY storelib HINTS ${STORELIB_LIBRARY_DIR})
 
 find_package_handle_standard_args (Storelib DEFAULT_MSG
