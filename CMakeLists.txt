@@ -28,7 +28,7 @@
 # ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 2.8)
 project(KVTest)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -41,4 +41,10 @@ find_package(Threads REQUIRED)
 find_package(Storelib MODULE REQUIRED)
 
 add_executable(KVTest0 kv_test0.cc)
-target_link_libraries(KVTest storelib Threads::Threads)
+target_link_libraries(KVTest0 storelib)
+if(THREADS_HAVE_PTHREAD_ARG)
+    target_compile_options(KVTest0 PUBLIC "-pthread")
+endif()
+if(CMAKE_THREAD_LIBS_INIT)
+    target_link_libraries (KVTest0 "${CMAKE_THREAD_LIBS_INIT}")
+endif()
