@@ -74,21 +74,23 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include <string>
 #include <sys/time.h>
 #include <vector>
 
 class KVTest {
  public:
-  KVTest(size_t klen, size_t vlen, int n) : klen_(klen), vlen_(vlen), n_(n) {
+  KVTest(size_t klen, size_t vlen, int n)
+      : stop_on_err_(false), klen_(klen), vlen_(vlen), n_(n) {
     PrepareKeys();
   }
   ~KVTest() {}
 
   struct ThreadArg {
-    ThreadArg() : pid(0), t(NULL), ops(0), ops_per_thread(0), id(0) {}
+    ThreadArg()
+        : pid(0), t(NULL), err_ops(0), ops(0), ops_per_thread(0), id(0) {}
     pthread_t pid;
     const KVTest* t;
+    uint32_t err_ops;
     uint32_t ops;
     int ops_per_thread;
     int id;
@@ -104,7 +106,11 @@ class KVTest {
       int ret =
           port::PliopsPutCommand(k, arg->t->klen_, val.Generate(vlen), vlen);
       if (ret != 0) {
-        //
+        fprintf(stderr, "Error executing PUT\n");
+        arg->err_ops++;
+        if (arg->t->stop_on_err_) {
+          break;
+        }
       }
       k += arg->t->klen_;
       arg->ops++;
@@ -139,7 +145,8 @@ class KVTest {
       arg->id = i;
       int r = pthread_create(&arg->pid, NULL, DoPuts, arg);
       if (r != 0) {
-        //
+        fprintf(stderr, "Cannot create workers!!!\n");
+        abort();
       }
     }
     JoinAll(j, &threads[0]);
@@ -169,6 +176,7 @@ class KVTest {
     }
   }
 
+  bool stop_on_err_;
   std::string keybuf_;
   size_t klen_;
   size_t vlen_;
