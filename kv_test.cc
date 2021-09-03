@@ -75,6 +75,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <string>
+#include <sys/time.h>
 #include <vector>
 
 class KVTest {
@@ -116,7 +117,18 @@ class KVTest {
     }
   }
 
+  // Return the current time in microseconds.
+  static inline uint64_t CurrentMicros() {
+    uint64_t result;
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    result = static_cast<uint64_t>(tv.tv_sec) * 1000000 + tv.tv_usec;
+    return result;
+  }
+
   void Run(int j) {
+    OpenDB();
+    const uint64_t begin = CurrentMicros();
     std::vector<ThreadArg> threads;
     threads.resize(j);
     for (int i = 0; i < j; i++) {
@@ -130,10 +142,32 @@ class KVTest {
       }
     }
     JoinAll(j, &threads[0]);
+    const uint64_t end = CurrentMicros();
+    Shutdown();
+    // Summary
+    uint64_t total_ops;
+    for (int i = 0; i < j; i++) total_ops = threads[i].ops;
+    fprintf(stderr, "== Total Ops: %llu\n",
+            static_cast<unsigned long long>(total_ops));
+    fprintf(stderr, "== Tput: %.3f op/s\n",
+            1000. * 1000. * double(total_ops) / double(end - begin));
     // Done!!
   }
 
  private:
+  void OpenDB() {
+    if (!port::PliopsOpenDB(0)) {
+      fprintf(stderr, "Cannot open db!!!\n");
+      abort();
+    }
+  }
+
+  void Shutdown() {
+    if (!port::PliopsCloseDB()) {
+      fprintf(stderr, "Error closing db\n");
+    }
+  }
+
   std::string keybuf_;
   size_t klen_;
   size_t vlen_;
