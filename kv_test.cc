@@ -118,6 +118,38 @@ class KVTest {
     return NULL;
   }
 
+  static void* CheckData(void* input) {
+    std::string buf;
+    ThreadArg* const arg = static_cast<ThreadArg*>(input);
+    const char* k =
+        &arg->t->keybuf_[arg->id * arg->ops_per_thread * arg->t->klen_];
+    RandomValueGenerator val(1 + arg->id);
+    size_t vlen = arg->t->vlen_;
+    buf.resize(vlen);
+    for (int i = 0; i < arg->ops_per_thread; i++) {
+      uint32_t object_size;
+      int ret =
+          port::PliopsGetCommand(k, arg->t->klen_, &buf[0], vlen, object_size);
+      if (ret != 0) {
+        fprintf(stderr, "Error executing GET\n");
+        arg->err_ops++;
+        if (arg->t->stop_on_err_) {
+          break;
+        }
+      } else if (object_size != vlen ||
+                 memcmp(&buf[0], val.Generate(vlen), vlen) != 0) {
+        fprintf(stderr, "DATA CORRUPTION\n");
+        arg->err_ops++;
+        if (arg->t->stop_on_err_) {
+          break;
+        }
+      }
+      k += arg->t->klen_;
+      arg->ops++;
+    }
+    return NULL;
+  }
+
   static inline void JoinAll(ThreadArg const* args, int n) {
     for (int i = 0; i < n; i++) {
       pthread_join(args[i].pid, NULL);
@@ -133,7 +165,7 @@ class KVTest {
     return result;
   }
 
-  void Run(int j) {
+  void Run(void* (*task)(void*), int j) {
     OpenDB();
     const uint64_t begin = CurrentMicros();
     std::vector<ThreadArg> threads;
@@ -143,7 +175,7 @@ class KVTest {
       arg->t = this;
       arg->ops_per_thread = n_ / j;
       arg->id = i;
-      int r = pthread_create(&arg->pid, NULL, DoPuts, arg);
+      int r = pthread_create(&arg->pid, NULL, task, arg);
       if (r != 0) {
         fprintf(stderr, "Cannot create workers!!!\n");
         abort();
@@ -205,6 +237,8 @@ static void usage(char* argv0, const char* msg) {
           argv0);
   fprintf(stderr,
           "-n      num_ops      :  total number of ops (across all threads)\n");
+  fprintf(stderr, "-w      writes       :  do PUTS\n");
+  fprintf(stderr, "-c      checks       :  do data checks\n");
   fprintf(stderr, "-k      klen         :  key length\n");
   fprintf(stderr, "-v      vlen         :  value length\n");
   fprintf(stderr, "-t      threads      :  number of threads\n");
@@ -214,6 +248,8 @@ static void usage(char* argv0, const char* msg) {
 
 int main(int argc, char* argv[]) {
   int c;
+  int writes = 0;
+  int data_checks = 0;
   int klen = 16;
   int vlen = 64;
   int n = 8;
@@ -222,7 +258,7 @@ int main(int argc, char* argv[]) {
   /* we want lines!! */
   setlinebuf(stdout);
 
-  while ((c = getopt(argc, argv, "n:k:v:t:j:h")) != -1) {
+  while ((c = getopt(argc, argv, "n:k:v:t:j:wch")) != -1) {
     switch (c) {
       case 'n':
         n = atoi(optarg);
@@ -241,6 +277,12 @@ int main(int argc, char* argv[]) {
         j = atoi(optarg);
         if (j < 1) usage(argv[0], "bad thread num");
         break;
+      case 'w':
+        writes = atoi(optarg);
+        break;
+      case 'c':
+        data_checks = atoi(optarg);
+        break;
       case 'h':
       default:
         usage(argv[0], NULL);
@@ -248,7 +290,9 @@ int main(int argc, char* argv[]) {
   }
 
   KVTest test(klen, vlen, n);
-  test.Run(j);
+  if (writes != 0) test.Run(KVTest::DoPuts, j);
+  if (data_checks != 0) test.Run(KVTest::CheckData, j);
+  fprintf(stderr, "Done!\n");
 
   return 0;
 }
