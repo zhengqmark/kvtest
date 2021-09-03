@@ -233,12 +233,13 @@ class KVTest {
 static void usage(char* argv0, const char* msg) {
   if (msg) fprintf(stderr, "%s: %s\n", argv0, msg);
   fprintf(stderr, "==============\n");
-  fprintf(stderr, "Usage: %s [-n num_ops] [-k klen] [-v vlen] [-t threads]\n",
-          argv0);
   fprintf(stderr,
-          "-n      num_ops      :  total number of ops (across all threads)\n");
+          "usage: %s [-w] [-c] [-n num_ops] [-k klen] [-v vlen] [-t threads]\n",
+          argv0);
   fprintf(stderr, "-w      writes       :  do PUTS\n");
   fprintf(stderr, "-c      checks       :  do data checks\n");
+  fprintf(stderr,
+          "-n      num_ops      :  total number of ops (across all threads)\n");
   fprintf(stderr, "-k      klen         :  key length\n");
   fprintf(stderr, "-v      vlen         :  value length\n");
   fprintf(stderr, "-t      threads      :  number of threads\n");
