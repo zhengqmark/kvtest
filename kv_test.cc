@@ -215,7 +215,7 @@ int main(int argc, char* argv[]) {
   int klen = 16;
   int vlen = 64;
   int n = 8;
-  int j = 1;
+  int j = 2;
 
   /* we want lines!! */
   setlinebuf(stdout);
