@@ -146,8 +146,8 @@ class KVTest {
     const uint64_t end = CurrentMicros();
     Shutdown();
     // Summary
-    uint64_t total_ops;
-    for (int i = 0; i < j; i++) total_ops = threads[i].ops;
+    uint64_t total_ops = 0;
+    for (int i = 0; i < j; i++) total_ops += threads[i].ops;
     fprintf(stderr, "== Total Ops: %llu\n",
             static_cast<unsigned long long>(total_ops));
     fprintf(stderr, "== Tput: %.3f op/s\n",
