@@ -42,7 +42,7 @@ add_executable(KVTest kv_test.cc pliops_port_dummy.cc)
 
 #find_package(Storelib MODULE REQUIRED)
 #add_executable(KVTest kv_test.cc pliops_port.cc)
-#target_link_libraries(KVTest0 storelib)
+#target_link_libraries(KVTest storelib)
 if(THREADS_HAVE_PTHREAD_ARG)
     target_compile_options(KVTest PUBLIC "-pthread")
 endif()
