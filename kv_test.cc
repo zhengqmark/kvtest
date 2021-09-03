@@ -96,7 +96,8 @@ class KVTest {
 
   static void* DoPuts(void* input) {
     ThreadArg* const arg = static_cast<ThreadArg*>(input);
-    const char* k = &arg->t->keybuf_[arg->id * arg->ops_per_thread];
+    const char* k =
+        &arg->t->keybuf_[arg->id * arg->ops_per_thread * arg->t->klen_];
     RandomValueGenerator val(1 + arg->id);
     size_t vlen = arg->t->vlen_;
     for (int i = 0; i < arg->ops_per_thread; i++) {
