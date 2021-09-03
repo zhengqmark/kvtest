@@ -136,9 +136,16 @@ class KVTest {
         if (arg->t->stop_on_err_) {
           break;
         }
-      } else if (object_size != vlen ||
-                 memcmp(&buf[0], val.Generate(vlen), vlen) != 0) {
-        fprintf(stderr, "Bad data: thread_id=%d/key_id=%d\n", arg->id, i);
+      } else if (object_size != vlen) {
+        fprintf(stderr, "Bad object size: key=%d\n",
+                arg->id * arg->ops_per_thread + i);
+        arg->err_ops++;
+        if (arg->t->stop_on_err_) {
+          break;
+        }
+      } else if (memcmp(&buf[0], val.Generate(vlen), vlen) != 0) {
+        fprintf(stderr, "Bad data: key=%d\n",
+                arg->id * arg->ops_per_thread + i);
         arg->err_ops++;
         if (arg->t->stop_on_err_) {
           break;
