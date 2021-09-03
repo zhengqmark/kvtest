@@ -33,50 +33,41 @@
  */
 #include "pliops_port.h"
 
-#include "/etc/pliops/store_lib_expo.h"
-
 #include <stdio.h>
+#include <store_lib_expo.h>
+#include <string.h>
 
 namespace port {
 PLIOPS_DB_t pliopsDB;
-uint8_t instanceId;
 
-bool PliopsOpenDB(uint8_t instance) {
-  instanceId = instance;
-  printf("Pilops Open DB - %d\n", instanceId);
-  pliopsDB = PLIOPS_OpenDB(1, NULL);
+bool PliopsOpenDB(uint8_t ins) {
+  pliopsDB = PLIOPS_OpenDB(ins, NULL);
   return true;
 }
 
 bool PliopsCloseDB(void) {
   PLIOPS_STATUS_et returnValue = PLIOPS_CloseDB(pliopsDB);
-  printf("Pilops Close DB - %d\n", instanceId);
   if (returnValue != PLIOPS_STATUS_OK) {
-    printf(" Pliops Failed To Close The Device\n");
     return false;
   }
   return true;
 }
 
-int PliopsPutCommand(const char *key_buffer, size_t key_size, const char *data,
+int PliopsPutCommand(const char* key_buffer, size_t key_size, const char* data,
                      const uint32_t data_length) {
   PLIOPS_STATUS_et returnValue;
-  char *start = const_cast<char *>(key_buffer);
-  memcpy(start, &instanceId, sizeof(instanceId));
-  returnValue = PLIOPS_Put(pliopsDB, (void *) key_buffer, key_size, (void *) data,
+  returnValue = PLIOPS_Put(pliopsDB, (void*)key_buffer, key_size, (void*)data,
                            data_length, false);
-  return (int) returnValue;
+  return int(returnValue);
 }
 
-int PliopsGetCommand(const char *key_buffer, size_t key_size, char *data,
-                     const uint32_t data_length, uint32_t &objectSize) {
-  PLIOPS_STATUS_et returnValue;
-  char *start = const_cast<char *>(key_buffer);
-  memcpy(start, &instanceId, sizeof(instanceId));
+int PliopsGetCommand(const char* key_buffer, size_t key_size, char* data,
+                     const uint32_t data_length, uint32_t& objectSize) {
   objectSize = 0;
-  returnValue = PLIOPS_Get(pliopsDB, (void *) key_buffer, key_size, (void *) data,
+  PLIOPS_STATUS_et returnValue;
+  returnValue = PLIOPS_Get(pliopsDB, (void*)key_buffer, key_size, (void*)data,
                            data_length, &objectSize);
-  // free(data);
-  return (int) returnValue;
+  return int(returnValue);
 }
-}
+
+}  // namespace port
