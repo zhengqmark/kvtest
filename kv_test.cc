@@ -155,6 +155,8 @@ class KVTest {
     // Summary
     uint64_t total_ops = 0;
     for (int i = 0; i < j; i++) total_ops += threads[i].ops;
+    fprintf(stderr, "== Total Elapsed Time: %llu micro seconds (us)\n",
+            static_cast<unsigned long long>(end - begin));
     fprintf(stderr, "== Total Ops: %llu\n",
             static_cast<unsigned long long>(total_ops));
     fprintf(stderr, "== Tput: %.3f op/s\n",
