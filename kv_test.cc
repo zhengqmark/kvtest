@@ -278,10 +278,10 @@ int main(int argc, char* argv[]) {
         if (j < 1) usage(argv[0], "bad thread num");
         break;
       case 'w':
-        writes = atoi(optarg);
+        writes = 1;
         break;
       case 'c':
-        data_checks = atoi(optarg);
+        data_checks = 1;
         break;
       case 'h':
       default:
