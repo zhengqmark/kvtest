@@ -118,7 +118,7 @@ class KVTest {
     return NULL;
   }
 
-  static inline void JoinAll(int n, ThreadArg const* args) {
+  static inline void JoinAll(ThreadArg const* args, int n) {
     for (int i = 0; i < n; i++) {
       pthread_join(args[i].pid, NULL);
     }
@@ -149,7 +149,7 @@ class KVTest {
         abort();
       }
     }
-    JoinAll(j, &threads[0]);
+    JoinAll(&threads[0], j);
     const uint64_t end = CurrentMicros();
     Shutdown();
     // Summary
