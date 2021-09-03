@@ -138,7 +138,7 @@ class KVTest {
         }
       } else if (object_size != vlen ||
                  memcmp(&buf[0], val.Generate(vlen), vlen) != 0) {
-        fprintf(stderr, "DATA CORRUPTION\n");
+        fprintf(stderr, "Bad data: thread_id=%d/key_id=%d\n", arg->id, i);
         arg->err_ops++;
         if (arg->t->stop_on_err_) {
           break;
