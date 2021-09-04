@@ -66,10 +66,10 @@
  */
 #include "fnv.h"
 #include "pliops_port.h"
+#include "pthread_helper.h"
 #include "random_val_gen.h"
 
 #include <getopt.h>
-#include <pthread.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -78,17 +78,46 @@
 #include <vector>
 
 class KVTest {
- public:
-  KVTest(size_t klen, size_t vlen, int n)
-      : stop_on_err_(false), klen_(klen), vlen_(vlen), n_(n) {
-    PrepareKeys();
-  }
-  ~KVTest() {}
+ private:
+  const bool stop_on_err_;
+  std::string keybuf_;
+  size_t klen_;
+  size_t vlen_;
+  int n_;  // Total number of keys for PUT/GET operations
 
-  struct ThreadArg {
-    ThreadArg()
-        : pid(0), t(NULL), err_ops(0), ops(0), ops_per_thread(0), id(0) {}
-    pthread_t pid;
+ public:
+  // State shared by all concurrent worker threads of a test run
+  struct SharedState {
+    SharedState(int j)
+        : condvar(&mu),
+          total(j),
+          num_initialized(0),
+          num_done(0),
+          is_mon_running(false),
+          start(false) {}
+    port::Mutex mu;
+    port::CondVar condvar;
+    const int total;  // Total number of worker threads
+    // Each worker thread goes through the following states:
+    //    (1) initializing
+    //    (2) waiting for others to be initialized
+    //    (3) running
+    //    (4) done
+    int num_initialized;
+    int num_done;
+    bool is_mon_running;  // True if the mon thread is running
+    bool start;
+  };
+
+  struct ThreadState {
+    ThreadState()
+        : shared_state(NULL),
+          t(NULL),
+          err_ops(0),
+          ops(0),
+          ops_per_thread(0),
+          id(0) {}
+    SharedState* shared_state;
     const KVTest* t;
     uint32_t err_ops;
     uint32_t ops;
@@ -96,70 +125,60 @@ class KVTest {
     int id;
   };
 
-  static void* DoPuts(void* input) {
-    ThreadArg* const arg = static_cast<ThreadArg*>(input);
+  static void DoPuts(ThreadState* state) {
     const char* k =
-        &arg->t->keybuf_[arg->id * arg->ops_per_thread * arg->t->klen_];
-    RandomValueGenerator val(1 + arg->id);
-    size_t vlen = arg->t->vlen_;
-    for (int i = 0; i < arg->ops_per_thread; i++) {
+        &state->t->keybuf_[state->id * state->ops_per_thread * state->t->klen_];
+    RandomValueGenerator val(1 + state->id);
+    size_t vlen = state->t->vlen_;
+    for (int i = 0; i < state->ops_per_thread; i++) {
       int ret =
-          port::PliopsPutCommand(k, arg->t->klen_, val.Generate(vlen), vlen);
+          port::PliopsPutCommand(k, state->t->klen_, val.Generate(vlen), vlen);
       if (ret != 0) {
         fprintf(stderr, "Error executing PUT\n");
-        arg->err_ops++;
-        if (arg->t->stop_on_err_) {
+        state->err_ops++;
+        if (state->t->stop_on_err_) {
           break;
         }
       }
-      k += arg->t->klen_;
-      arg->ops++;
+      k += state->t->klen_;
+      state->ops++;
     }
-    return NULL;
   }
 
-  static void* CheckData(void* input) {
+  static void CheckData(ThreadState* state) {
     std::string buf;
-    ThreadArg* const arg = static_cast<ThreadArg*>(input);
     const char* k =
-        &arg->t->keybuf_[arg->id * arg->ops_per_thread * arg->t->klen_];
-    RandomValueGenerator val(1 + arg->id);
-    size_t vlen = arg->t->vlen_;
+        &state->t->keybuf_[state->id * state->ops_per_thread * state->t->klen_];
+    RandomValueGenerator val(1 + state->id);
+    size_t vlen = state->t->vlen_;
     buf.resize(vlen);
-    for (int i = 0; i < arg->ops_per_thread; i++) {
+    for (int i = 0; i < state->ops_per_thread; i++) {
       uint32_t object_size;
-      int ret =
-          port::PliopsGetCommand(k, arg->t->klen_, &buf[0], vlen, object_size);
+      int ret = port::PliopsGetCommand(k, state->t->klen_, &buf[0], vlen,
+                                       object_size);
       if (ret != 0) {
         fprintf(stderr, "Error executing GET\n");
-        arg->err_ops++;
-        if (arg->t->stop_on_err_) {
+        state->err_ops++;
+        if (state->t->stop_on_err_) {
           break;
         }
       } else if (object_size != vlen) {
         fprintf(stderr, "Bad object size: key=%d\n",
-                arg->id * arg->ops_per_thread + i);
-        arg->err_ops++;
-        if (arg->t->stop_on_err_) {
+                state->id * state->ops_per_thread + i);
+        state->err_ops++;
+        if (state->t->stop_on_err_) {
           break;
         }
       } else if (memcmp(&buf[0], val.Generate(vlen), vlen) != 0) {
         fprintf(stderr, "Bad data: key=%d\n",
-                arg->id * arg->ops_per_thread + i);
-        arg->err_ops++;
-        if (arg->t->stop_on_err_) {
+                state->id * state->ops_per_thread + i);
+        state->err_ops++;
+        if (state->t->stop_on_err_) {
           break;
         }
       }
-      k += arg->t->klen_;
-      arg->ops++;
-    }
-    return NULL;
-  }
-
-  static inline void JoinAll(ThreadArg const* args, int n) {
-    for (int i = 0; i < n; i++) {
-      pthread_join(args[i].pid, NULL);
+      k += state->t->klen_;
+      state->ops++;
     }
   }
 
@@ -172,28 +191,116 @@ class KVTest {
     return result;
   }
 
-  void Run(void* (*task)(void*), int j) {
+  struct ThreadArg {
+    void (*method)(ThreadState*);
+    ThreadState state;
+    pthread_t pid;
+  };
+
+  static void* ThreadBody(void* input) {
+    ThreadState* const thread = &static_cast<ThreadArg*>(input)->state;
+    SharedState* const shared = thread->shared_state;
+    {
+      MutexLock ml(&shared->mu);
+      shared->num_initialized++;
+      if (shared->num_initialized >= shared->total) {
+        shared->condvar.SignalAll();
+      }
+      while (!shared->start) {
+        shared->condvar.Wait();
+      }
+    }
+
+    static_cast<ThreadArg*>(input)->method(thread);
+
+    {
+      MutexLock l(&shared->mu);
+      shared->num_done++;
+      if (shared->num_done >= shared->total) {
+        shared->condvar.SignalAll();
+      }
+    }
+    return NULL;
+  }
+
+  struct MonitorArg {
+    const ThreadState** states;
+    SharedState* shared;
+    pthread_t pid;
+  };
+
+  static void* MonitorBody(void* input) {
+    MonitorArg* const arg = static_cast<MonitorArg*>(input);
+    SharedState* const shared = arg->shared;
+    MutexLock ml(&shared->mu);
+    shared->is_mon_running = true;
+    shared->condvar.SignalAll();
+    while (!shared->start) {
+      shared->condvar.Wait();
+    }
+    const uint64_t begin = CurrentMicros();
+    while (shared->num_done < shared->total) {
+      shared->mu.Unlock();
+      uint64_t dura = CurrentMicros() - begin;
+      fprintf(stderr, "%llu\n", static_cast<unsigned long long>(dura));
+      usleep(2 * 1000 * 1000);
+      shared->mu.Lock();
+    }
+    shared->is_mon_running = false;
+    shared->condvar.SignalAll();
+    return NULL;
+  }
+
+  void Run(void (*method)(ThreadState*), int j) {
     OpenDB();
     const uint64_t begin = CurrentMicros();
+    SharedState shared(j);
+    std::vector<const ThreadState*> per_thread_state;
     std::vector<ThreadArg> threads;
     threads.resize(j);
     for (int i = 0; i < j; i++) {
       ThreadArg* const arg = &threads[i];
-      arg->t = this;
-      arg->ops_per_thread = n_ / j;
-      arg->id = i;
-      int r = pthread_create(&arg->pid, NULL, task, arg);
-      if (r != 0) {
-        fprintf(stderr, "Cannot create workers!!!\n");
-        abort();
+      arg->method = method;
+      ThreadState* const thread = &arg->state;
+      thread->shared_state = &shared;
+      thread->t = this;
+      thread->ops_per_thread = n_ / j;
+      thread->id = i;
+      per_thread_state.push_back(thread);
+      port::PthreadCall(
+          "pthread_create",
+          pthread_create(&arg->pid, NULL, KVTest::ThreadBody, arg));
+      port::PthreadCall("pthread_detach", pthread_detach(arg->pid));
+    }
+    MonitorArg mon_arg;
+    mon_arg.states = &per_thread_state[0];
+    mon_arg.shared = &shared;
+    port::PthreadCall(
+        "pthread_create",
+        pthread_create(&mon_arg.pid, NULL, KVTest::MonitorBody, &mon_arg));
+    port::PthreadCall("pthread_detach", pthread_detach(mon_arg.pid));
+    {
+      MutexLock l(&shared.mu);
+      while (!shared.is_mon_running) {
+        shared.condvar.Wait();
+      }
+      while (shared.num_initialized < shared.total) {
+        shared.condvar.Wait();
+      }
+      shared.start = true;
+      shared.condvar.SignalAll();
+      while (shared.num_done < shared.total) {
+        shared.condvar.Wait();
+      }
+      while (shared.is_mon_running) {
+        shared.condvar.Wait();
       }
     }
-    JoinAll(&threads[0], j);
     const uint64_t end = CurrentMicros();
     Shutdown();
     // Summary
     uint64_t total_ops = 0;
-    for (int i = 0; i < j; i++) total_ops += threads[i].ops;
+    for (int i = 0; i < j; i++) total_ops += threads[i].state.ops;
     fprintf(stderr, "== Total Elapsed Time: %llu micro seconds (us)\n",
             static_cast<unsigned long long>(end - begin));
     fprintf(stderr, "== Total Ops: %llu\n",
@@ -202,6 +309,12 @@ class KVTest {
             1000. * 1000. * double(total_ops) / double(end - begin));
     // Done!!
   }
+
+  KVTest(size_t klen, size_t vlen, int n)
+      : stop_on_err_(false), klen_(klen), vlen_(vlen), n_(n) {
+    PrepareKeys();
+  }
+  ~KVTest() {}
 
  private:
   void OpenDB() {
@@ -216,13 +329,6 @@ class KVTest {
       fprintf(stderr, "Error closing db\n");
     }
   }
-
-  bool stop_on_err_;
-  std::string keybuf_;
-  size_t klen_;
-  size_t vlen_;
-  // Total ops across threads
-  int n_;
 
   void PrepareKeys() {
     char tmp[17];
