@@ -61,10 +61,11 @@ class Mutex {
 
  private:
   friend class CondVar;
-  pthread_mutex_t mu_;
   // No copying
   void operator=(const Mutex& mu);
   Mutex(const Mutex&);
+
+  pthread_mutex_t mu_;
 };
 
 class CondVar {
@@ -87,13 +88,14 @@ class CondVar {
   void operator=(const CondVar& cv);
   CondVar(const CondVar&);
 
+  pthread_mutex_t* const mu_;
   pthread_cond_t cv_;
-  pthread_mutex_t* mu_;
 };
+}  // namespace port
 
 class MutexLock {
  public:
-  explicit MutexLock(Mutex* mu) : mu_(mu) { mu_->Lock(); }
+  explicit MutexLock(port::Mutex* mu) : mu_(mu) { mu_->Lock(); }
   ~MutexLock() { mu_->Unlock(); }
 
  private:
@@ -101,7 +103,5 @@ class MutexLock {
   void operator=(const MutexLock& ml);
   MutexLock(const MutexLock&);
 
-  Mutex* const mu_;
+  port::Mutex* const mu_;
 };
-
-}  // namespace port
