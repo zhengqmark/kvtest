@@ -242,7 +242,7 @@ class KVTest {
     while (shared->num_done < shared->total) {
       shared->mu.Unlock();
       uint64_t dura = CurrentMicros() - begin;
-      fprintf(stderr, "%llu\n", static_cast<unsigned long long>(dura));
+      fprintf(stdout, "%llu\n", static_cast<unsigned long long>(dura));
       usleep(2 * 1000 * 1000);
       shared->mu.Lock();
     }
@@ -301,11 +301,11 @@ class KVTest {
     // Summary
     uint64_t total_ops = 0;
     for (int i = 0; i < j; i++) total_ops += threads[i].state.ops;
-    fprintf(stderr, "== Total Elapsed Time: %llu micro seconds (us)\n",
+    fprintf(stdout, "== Total Elapsed Time: %llu micro seconds (us)\n",
             static_cast<unsigned long long>(end - begin));
-    fprintf(stderr, "== Total Ops: %llu\n",
+    fprintf(stdout, "== Total Ops: %llu\n",
             static_cast<unsigned long long>(total_ops));
-    fprintf(stderr, "== Tput: %.3f op/s\n",
+    fprintf(stdout, "== Tput: %.3f op/s\n",
             1000. * 1000. * double(total_ops) / double(end - begin));
     // Done!!
   }
@@ -406,7 +406,7 @@ int main(int argc, char* argv[]) {
   KVTest test(klen, vlen, n);
   if (writes != 0) test.Run(KVTest::DoPuts, j);
   if (data_checks != 0) test.Run(KVTest::CheckData, j);
-  fprintf(stderr, "Done!\n");
+  fprintf(stdout, "Done!\n");
 
   return 0;
 }
