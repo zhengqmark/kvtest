@@ -113,12 +113,16 @@ class KVTest {
     ThreadState()
         : shared_state(NULL),
           t(NULL),
+          start(0),
+          finish(0),
           err_ops(0),
           ops(0),
           ops_per_thread(0),
           id(0) {}
     SharedState* shared_state;
     const KVTest* t;
+    uint64_t start;
+    uint64_t finish;
     uint32_t err_ops;
     uint32_t ops;
     int ops_per_thread;
@@ -211,7 +215,9 @@ class KVTest {
       }
     }
 
+    thread->start = CurrentMicros();
     static_cast<ThreadArg*>(input)->method(thread);
+    thread->finish = CurrentMicros();
 
     {
       MutexLock l(&shared->mu);
@@ -317,14 +323,30 @@ class KVTest {
     const uint64_t end = CurrentMicros();
     Shutdown();
     // Summary
+    uint64_t g_start = end;
+    for (int i = 0; i < j; i++) {
+      if (threads[i].state.start < g_start) {
+        g_start = threads[i].state.start;
+      }
+    }
+    uint64_t g_finish = begin;
+    for (int i = 0; i < j; i++) {
+      if (threads[i].state.finish > g_finish) {
+        g_finish = threads[i].state.finish;
+      }
+    }
+    assert(g_finish >= g_start);
+    uint64_t total_elapsed = g_finish - g_start;
     uint64_t total_ops = 0;
     for (int i = 0; i < j; i++) total_ops += threads[i].state.ops;
-    fprintf(stdout, "== Total Elapsed Time: %llu micro seconds (us)\n",
-            static_cast<unsigned long long>(end - begin));
+    fprintf(stdout, "== Total elapsed time: %.3f s\n",
+            double(total_elapsed) / 1000. / 1000.);
     fprintf(stdout, "== Total Ops: %llu\n",
             static_cast<unsigned long long>(total_ops));
     fprintf(stdout, "== Tput: %.3f op/s\n",
-            1000. * 1000. * double(total_ops) / double(end - begin));
+            1000. * 1000. * double(total_ops) / double(total_elapsed));
+    fprintf(stdout, "Benchmark finished in %.3f s\n",
+            double(end - begin) / 1000. / 1000.);
     // Done!!
   }
 
