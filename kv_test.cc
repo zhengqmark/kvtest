@@ -69,12 +69,14 @@
 #include "pthread_helper.h"
 #include "random_val_gen.h"
 
+#include <assert.h>
 #include <getopt.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/time.h>
+#include <unistd.h>
 #include <vector>
 
 class KVTest {
