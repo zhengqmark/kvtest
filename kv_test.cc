@@ -227,7 +227,21 @@ class KVTest {
     const ThreadState** states;
     SharedState* shared;
     pthread_t pid;
+    uint32_t output_interval;
+    FILE* output;
   };
+
+  static void OutputStats(const MonitorArg* arg, uint64_t time) {
+    uint64_t total_err_ops = 0;
+    uint64_t total_ops = 0;
+    for (int i = 0; i < arg->shared->total; i++) {
+      total_err_ops += arg->states[i]->err_ops;
+      total_ops += arg->states[i]->ops;
+    }
+    fprintf(arg->output, "%.3f,%llu,%llu\n", time / 1000. / 1000.,
+            static_cast<unsigned long long>(total_ops),
+            static_cast<unsigned long long>(total_err_ops));
+  }
 
   static void* MonitorBody(void* input) {
     MonitorArg* const arg = static_cast<MonitorArg*>(input);
@@ -241,11 +255,13 @@ class KVTest {
     const uint64_t begin = CurrentMicros();
     while (shared->num_done < shared->total) {
       shared->mu.Unlock();
-      uint64_t dura = CurrentMicros() - begin;
-      fprintf(stdout, "%llu\n", static_cast<unsigned long long>(dura));
-      usleep(2 * 1000 * 1000);
+      uint64_t relative_time = CurrentMicros() - begin;
+      OutputStats(arg, relative_time);
+      usleep(arg->output_interval);
       shared->mu.Lock();
     }
+    uint64_t d = CurrentMicros() - begin;
+    OutputStats(arg, d);
     shared->is_mon_running = false;
     shared->condvar.SignalAll();
     return NULL;
@@ -275,6 +291,8 @@ class KVTest {
     MonitorArg mon_arg;
     mon_arg.states = &per_thread_state[0];
     mon_arg.shared = &shared;
+    mon_arg.output_interval = 2 * 1000 * 1000;
+    mon_arg.output = stdout;
     port::PthreadCall(
         "pthread_create",
         pthread_create(&mon_arg.pid, NULL, KVTest::MonitorBody, &mon_arg));
