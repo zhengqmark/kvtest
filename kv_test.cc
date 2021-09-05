@@ -79,9 +79,9 @@
 #include <unistd.h>
 #include <vector>
 
+template <bool FLAGS_prepare_keys = false, bool FLAGS_stop_on_error = false>
 class KVTest {
  private:
-  const bool stop_on_err_;
   std::string keybuf_;
   size_t klen_;
   size_t vlen_;
@@ -142,7 +142,7 @@ class KVTest {
       if (ret != 0) {
         fprintf(stderr, "Error executing PUT\n");
         state->err_ops++;
-        if (state->t->stop_on_err_) {
+        if (FLAGS_stop_on_error) {
           break;
         }
       }
@@ -165,21 +165,21 @@ class KVTest {
       if (ret != 0) {
         fprintf(stderr, "Error executing GET\n");
         state->err_ops++;
-        if (state->t->stop_on_err_) {
+        if (FLAGS_stop_on_error) {
           break;
         }
       } else if (object_size != vlen) {
         fprintf(stderr, "Bad object size: key=%d\n",
                 state->id * state->ops_per_thread + i);
         state->err_ops++;
-        if (state->t->stop_on_err_) {
+        if (FLAGS_stop_on_error) {
           break;
         }
       } else if (memcmp(&buf[0], val.Generate(vlen), vlen) != 0) {
         fprintf(stderr, "Bad data: key=%d\n",
                 state->id * state->ops_per_thread + i);
         state->err_ops++;
-        if (state->t->stop_on_err_) {
+        if (FLAGS_stop_on_error) {
           break;
         }
       }
@@ -358,9 +358,10 @@ class KVTest {
     // Done!!
   }
 
-  KVTest(size_t klen, size_t vlen, int n)
-      : stop_on_err_(false), klen_(klen), vlen_(vlen), n_(n) {
-    PrepareKeys();
+  KVTest(size_t klen, size_t vlen, int n) : klen_(klen), vlen_(vlen), n_(n) {
+    if (FLAGS_prepare_keys) {
+      PrepareKeys();
+    }
   }
   ~KVTest() {}
 
@@ -451,9 +452,10 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  KVTest test(klen, vlen, n);
-  if (writes != 0) test.Run(KVTest::DoPuts, j);
-  if (data_checks != 0) test.Run(KVTest::CheckData, j);
+  typedef KVTest<> KVTest0;
+  KVTest0 test(klen, vlen, n);
+  if (writes != 0) test.Run(KVTest0::DoPuts, j);
+  if (data_checks != 0) test.Run(KVTest0::CheckData, j);
   fprintf(stdout, "Done!\n");
 
   return 0;
