@@ -244,9 +244,15 @@ class KVTest {
       total_err_ops += arg->states[i]->err_ops;
       total_ops += arg->states[i]->ops;
     }
-    fprintf(arg->output, "%.3f,%llu,%llu\n", time / 1000. / 1000.,
+    fprintf(arg->output, "%.3f,%llu,%llu", time / 1000. / 1000.,
             static_cast<unsigned long long>(total_ops),
             static_cast<unsigned long long>(total_err_ops));
+    if (arg->output == stdout || arg->output == stderr) {
+      fprintf(arg->output, ",%.3f\n",
+              1000. * 1000. * double(total_ops) / double(time));
+    } else {
+      fputc('\n', arg->output);
+    }
   }
 
   static void* MonitorBody(void* input) {
