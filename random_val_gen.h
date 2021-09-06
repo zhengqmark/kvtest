@@ -83,7 +83,7 @@ class RandomValueGenerator {
     pos_ = 0;
   }
 
-  const char* Generate(size_t len) {
+  const char* Next(size_t len) {
     if (pos_ + len > buf_.size()) {
       pos_ = 0;
     }

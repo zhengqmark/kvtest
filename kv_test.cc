@@ -135,11 +135,11 @@ class KVTest {
     const size_t vlen = state->t->vlen_;
     const uint64_t begin = state->id * state->ops_per_thread;
     const uint64_t end = begin + state->ops_per_thread;
-    char k[20];
     for (uint64_t i = begin; i < end; i++) {
-      sprintf(k, "%016llx", FNVHash64(i));
+      char key[100];
+      snprintf(key, sizeof(key), "%016llx", FNVHash64(i));
       int ret =
-          port::PliopsPutCommand(k, state->t->klen_, val.Generate(vlen), vlen);
+          port::PliopsPutCommand(key, state->t->klen_, val.Next(vlen), vlen);
       if (ret != 0) {
         fprintf(stderr, "Error executing PUT\n");
         state->err_ops++;
@@ -158,11 +158,11 @@ class KVTest {
     buf.resize(vlen);
     const uint64_t begin = state->id * state->ops_per_thread;
     const uint64_t end = begin + state->ops_per_thread;
-    char k[20];
     for (uint64_t i = begin; i < end; i++) {
-      sprintf(k, "%016llx", FNVHash64(i));
+      char key[100];
+      snprintf(key, sizeof(key), "%016llx", FNVHash64(i));
       uint32_t object_size;
-      int ret = port::PliopsGetCommand(k, state->t->klen_, &buf[0], vlen,
+      int ret = port::PliopsGetCommand(key, state->t->klen_, &buf[0], vlen,
                                        object_size);
       if (ret != 0) {
         fprintf(stderr, "Error executing GET\n");
@@ -171,13 +171,15 @@ class KVTest {
           break;
         }
       } else if (object_size != vlen) {
-        fprintf(stderr, "Bad object size: key=%llu\n", i);
+        fprintf(stderr, "Bad object size: key=%llu\n",
+                static_cast<unsigned long long>(i));
         state->err_ops++;
         if (FLAGS_stop_on_error) {
           break;
         }
-      } else if (memcmp(&buf[0], val.Generate(vlen), vlen) != 0) {
-        fprintf(stderr, "Bad data: key=%llu\n", i);
+      } else if (memcmp(&buf[0], val.Next(vlen), vlen) != 0) {
+        fprintf(stderr, "Bad data: key=%llu\n",
+                static_cast<unsigned long long>(i));
         state->err_ops++;
         if (FLAGS_stop_on_error) {
           break;
