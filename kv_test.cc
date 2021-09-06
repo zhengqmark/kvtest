@@ -84,7 +84,7 @@ class KVTest {
  private:
   size_t klen_;
   size_t vlen_;
-  int n_;  // Total number of keys for tests
+  uint64_t n_;  // Total number of keys for tests
 
  public:
   // State shared by all concurrent worker threads of a test run
@@ -124,9 +124,9 @@ class KVTest {
     const KVTest* t;
     uint64_t start;
     uint64_t finish;
-    uint32_t err_ops;
-    uint32_t ops;
-    int ops_per_thread;
+    uint64_t err_ops;
+    uint64_t ops;  // Number operations done including errors
+    uint64_t ops_per_thread;
     int id;
   };
 
@@ -359,7 +359,8 @@ class KVTest {
     // Done!!
   }
 
-  KVTest(size_t klen, size_t vlen, int n) : klen_(klen), vlen_(vlen), n_(n) {}
+  KVTest(size_t klen, size_t vlen, uint64_t n)
+      : klen_(klen), vlen_(vlen), n_(n) {}
   ~KVTest() {}
 
  private:
@@ -400,21 +401,26 @@ int main(int argc, char* argv[]) {
   int data_checks = 0;
   int klen = 16;
   int vlen = 64;
-  int n = 8;
+  int64_t n = 8;
   int j = 2;
 
   /* we want lines!! */
   setlinebuf(stdout);
 
-  while ((c = getopt(argc, argv, "n:k:v:t:j:wch")) != -1) {
+  while ((c = getopt(argc, argv, "m:n:k:v:t:j:wch")) != -1) {
     switch (c) {
+      case 'm':
+        n = atoi(optarg);
+        if (n < 0) usage(argv[0], "bad num million ops");
+        n *= (1000 * 1000);
+        break;
       case 'n':
         n = atoi(optarg);
         if (n < 0) usage(argv[0], "bad num ops");
         break;
       case 'k':
         klen = atoi(optarg);
-        if (klen < 1) usage(argv[0], "bad k len");
+        if (klen < 1 || klen > 16) usage(argv[0], "bad k len");
         break;
       case 'v':
         vlen = atoi(optarg);
