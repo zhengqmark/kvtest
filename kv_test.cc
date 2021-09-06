@@ -79,13 +79,12 @@
 #include <unistd.h>
 #include <vector>
 
-template <bool FLAGS_prepare_keys = false, bool FLAGS_stop_on_error = false>
+template <bool FLAGS_stop_on_error = false>
 class KVTest {
  private:
-  std::string keybuf_;
   size_t klen_;
   size_t vlen_;
-  int n_;  // Total number of keys for PUT/GET operations
+  int n_;  // Total number of keys for tests
 
  public:
   // State shared by all concurrent worker threads of a test run
@@ -131,12 +130,14 @@ class KVTest {
     int id;
   };
 
-  static void DoPuts(ThreadState* state) {
-    const char* k =
-        &state->t->keybuf_[state->id * state->ops_per_thread * state->t->klen_];
+  static void DoPuts(ThreadState* const state) {
     RandomValueGenerator val(1 + state->id);
-    size_t vlen = state->t->vlen_;
-    for (int i = 0; i < state->ops_per_thread; i++) {
+    const size_t vlen = state->t->vlen_;
+    const uint64_t begin = state->id * state->ops_per_thread;
+    const uint64_t end = begin + state->ops_per_thread;
+    char k[20];
+    for (uint64_t i = begin; i < end; i++) {
+      sprintf(k, "%016llx", FNVHash64(i));
       int ret =
           port::PliopsPutCommand(k, state->t->klen_, val.Generate(vlen), vlen);
       if (ret != 0) {
@@ -146,19 +147,20 @@ class KVTest {
           break;
         }
       }
-      k += state->t->klen_;
       state->ops++;
     }
   }
 
-  static void CheckData(ThreadState* state) {
+  static void CheckData(ThreadState* const state) {
     std::string buf;
-    const char* k =
-        &state->t->keybuf_[state->id * state->ops_per_thread * state->t->klen_];
     RandomValueGenerator val(1 + state->id);
-    size_t vlen = state->t->vlen_;
+    const size_t vlen = state->t->vlen_;
     buf.resize(vlen);
-    for (int i = 0; i < state->ops_per_thread; i++) {
+    const uint64_t begin = state->id * state->ops_per_thread;
+    const uint64_t end = begin + state->ops_per_thread;
+    char k[20];
+    for (uint64_t i = begin; i < end; i++) {
+      sprintf(k, "%016llx", FNVHash64(i));
       uint32_t object_size;
       int ret = port::PliopsGetCommand(k, state->t->klen_, &buf[0], vlen,
                                        object_size);
@@ -169,21 +171,18 @@ class KVTest {
           break;
         }
       } else if (object_size != vlen) {
-        fprintf(stderr, "Bad object size: key=%d\n",
-                state->id * state->ops_per_thread + i);
+        fprintf(stderr, "Bad object size: key=%llu\n", i);
         state->err_ops++;
         if (FLAGS_stop_on_error) {
           break;
         }
       } else if (memcmp(&buf[0], val.Generate(vlen), vlen) != 0) {
-        fprintf(stderr, "Bad data: key=%d\n",
-                state->id * state->ops_per_thread + i);
+        fprintf(stderr, "Bad data: key=%llu\n", i);
         state->err_ops++;
         if (FLAGS_stop_on_error) {
           break;
         }
       }
-      k += state->t->klen_;
       state->ops++;
     }
   }
@@ -358,11 +357,7 @@ class KVTest {
     // Done!!
   }
 
-  KVTest(size_t klen, size_t vlen, int n) : klen_(klen), vlen_(vlen), n_(n) {
-    if (FLAGS_prepare_keys) {
-      PrepareKeys();
-    }
-  }
+  KVTest(size_t klen, size_t vlen, int n) : klen_(klen), vlen_(vlen), n_(n) {}
   ~KVTest() {}
 
  private:
@@ -376,18 +371,6 @@ class KVTest {
   void Shutdown() {
     if (!port::PliopsCloseDB()) {
       fprintf(stderr, "Error closing db\n");
-    }
-  }
-
-  void PrepareKeys() {
-    char tmp[17];
-    keybuf_.resize(n_ * klen_, 0);
-    char* k = &keybuf_[0];
-    for (int i = 0; i < n_; i++) {
-      uint64_t h = FNVHash64(i);
-      sprintf(tmp, "%016llx", h);
-      memcpy(k, tmp, klen_);
-      k += klen_;
     }
   }
 };

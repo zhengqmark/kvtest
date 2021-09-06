@@ -72,10 +72,6 @@
 #include <string>
 
 class RandomValueGenerator {
- private:
-  std::string buf_;
-  size_t pos_;
-
  public:
   explicit RandomValueGenerator(uint32_t seed) {
     Random rdn(seed);
@@ -87,11 +83,15 @@ class RandomValueGenerator {
     pos_ = 0;
   }
 
-  const char *Generate(size_t len) {
+  const char* Generate(size_t len) {
     if (pos_ + len > buf_.size()) {
       pos_ = 0;
     }
     pos_ += len;
     return (buf_.data() + pos_ - len);
   }
+
+ private:
+  std::string buf_;
+  size_t pos_;
 };
