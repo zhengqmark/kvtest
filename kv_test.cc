@@ -151,44 +151,6 @@ class KVTest {
     }
   }
 
-  static void CheckData(ThreadState* const state) {
-    std::string buf;
-    RandomValueGenerator val(1 + state->id);
-    const size_t vlen = state->t->vlen_;
-    buf.resize(vlen);
-    const uint64_t begin = state->id * state->ops_per_thread;
-    const uint64_t end = begin + state->ops_per_thread;
-    for (uint64_t i = begin; i < end; i++) {
-      char key[100];
-      snprintf(key, sizeof(key), "%016llx", FNVHash64(i));
-      uint32_t object_size;
-      int ret = port::PliopsGetCommand(key, state->t->klen_, &buf[0], vlen,
-                                       object_size);
-      if (ret != 0) {
-        fprintf(stderr, "Error executing GET\n");
-        state->err_ops++;
-        if (FLAGS_stop_on_error) {
-          break;
-        }
-      } else if (object_size != vlen) {
-        fprintf(stderr, "Bad object size: key=%llu\n",
-                static_cast<unsigned long long>(i));
-        state->err_ops++;
-        if (FLAGS_stop_on_error) {
-          break;
-        }
-      } else if (memcmp(&buf[0], val.Next(vlen), vlen) != 0) {
-        fprintf(stderr, "Bad data: key=%llu\n",
-                static_cast<unsigned long long>(i));
-        state->err_ops++;
-        if (FLAGS_stop_on_error) {
-          break;
-        }
-      }
-      state->ops++;
-    }
-  }
-
   // Return the current time in microseconds.
   static inline uint64_t CurrentMicros() {
     uint64_t result;
@@ -382,10 +344,9 @@ static void usage(char* argv0, const char* msg) {
   if (msg) fprintf(stderr, "%s: %s\n", argv0, msg);
   fprintf(stderr, "==============\n");
   fprintf(stderr,
-          "usage: %s [-w] [-c] [-n num_ops] [-k klen] [-v vlen] [-t threads]\n",
+          "usage: %s [-w] [-n num_ops] [-k klen] [-v vlen] [-t threads]\n",
           argv0);
   fprintf(stderr, "-w      writes       :  do PUTS\n");
-  fprintf(stderr, "-c      checks       :  do data checks\n");
   fprintf(stderr,
           "-n      num_ops      :  total number of ops (across all threads)\n");
   fprintf(stderr, "-k      klen         :  key length\n");
@@ -398,7 +359,6 @@ static void usage(char* argv0, const char* msg) {
 int main(int argc, char* argv[]) {
   int c;
   int writes = 0;
-  int data_checks = 0;
   int klen = 16;
   int vlen = 64;
   int64_t n = 8;
@@ -407,7 +367,7 @@ int main(int argc, char* argv[]) {
   /* we want lines!! */
   setlinebuf(stdout);
 
-  while ((c = getopt(argc, argv, "m:n:k:v:t:j:wch")) != -1) {
+  while ((c = getopt(argc, argv, "m:n:k:v:t:j:wh")) != -1) {
     switch (c) {
       case 'm':
         n = atoi(optarg);
@@ -434,9 +394,6 @@ int main(int argc, char* argv[]) {
       case 'w':
         writes = 1;
         break;
-      case 'c':
-        data_checks = 1;
-        break;
       case 'h':
       default:
         usage(argv[0], NULL);
@@ -446,7 +403,6 @@ int main(int argc, char* argv[]) {
   typedef KVTest<> KVTest0;
   KVTest0 test(klen, vlen, n);
   if (writes != 0) test.Run(KVTest0::DoPuts, j);
-  if (data_checks != 0) test.Run(KVTest0::CheckData, j);
   fprintf(stdout, "Done!\n");
 
   return 0;
