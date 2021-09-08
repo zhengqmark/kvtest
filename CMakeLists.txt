@@ -50,3 +50,5 @@ foreach(tgt KVTest)
         target_link_libraries (${tgt} "${CMAKE_THREAD_LIBS_INIT}")
     endif()
 endforeach()
+
+add_executable(fnv_test fnv_test.cc)
