@@ -137,7 +137,8 @@ class KVTest {
     const uint64_t end = begin + state->ops_per_thread;
     for (uint64_t i = begin; i < end; i++) {
       char key[100];
-      snprintf(key, sizeof(key), "%016llx", FNVHash64(i));
+      snprintf(key, sizeof(key), "%016llx",
+               static_cast<unsigned long long>(FNVHash64(i)));
       int ret =
           port::PliopsPutCommand(key, state->t->klen_, val.Next(vlen), vlen);
       if (ret != 0) {
