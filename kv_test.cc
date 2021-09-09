@@ -354,7 +354,7 @@ class KVTest {
   }
 
   void Shutdown() {
-    if (!port::PliopsCloseDB()) {
+    if (port::PliopsFlush() != 0 || !port::PliopsCloseDB()) {
       fprintf(stderr, "Error closing db\n");
     }
   }

@@ -82,4 +82,9 @@ int PliopsGetCommand(const char* key_buffer, size_t key_size, char* data,
   return 0;
 }
 
+int PliopsFlush() {
+  fprintf(stderr, "PLIOPS - FLUSH\n");
+  return 0;
+}
+
 }  // namespace port

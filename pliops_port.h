@@ -42,6 +42,7 @@ int PliopsGetCommand(const char* key_buffer, size_t key_size, char* data,
                      const uint32_t data_length, uint32_t& objectSize);
 int PliopsPutCommand(const char* key_buffer, size_t key_size, const char* data,
                      const uint32_t data_length);
+int PliopsFlush();
 bool PliopsOpenDB(uint8_t instance);
 bool PliopsCloseDB(void);
 

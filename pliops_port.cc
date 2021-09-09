@@ -70,4 +70,10 @@ int PliopsGetCommand(const char* key_buffer, size_t key_size, char* data,
   return int(returnValue);
 }
 
+int PliopsFlush() {
+  PLIOPS_STATUS_et returnValue;
+  returnValue = PLIOPS_Flush(pliopsDB);
+  return int(returnValue);
+}
+
 }  // namespace port
