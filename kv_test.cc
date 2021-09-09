@@ -130,7 +130,26 @@ class KVTest {
     int id;
   };
 
-  static void DoPuts(ThreadState* const state) {
+  static void DoPutKeys(ThreadState* const state) {
+    const uint64_t begin = state->id * state->ops_per_thread;
+    const uint64_t end = begin + state->ops_per_thread;
+    for (uint64_t i = begin; i < end; i++) {
+      char key[100];
+      snprintf(key, sizeof(key), "%016llx",
+               static_cast<unsigned long long>(FNVHash64(i)));
+      int ret = port::PliopsPutCommand(key, state->t->klen_, "", 0);
+      if (ret != 0) {
+        fprintf(stderr, "Error executing PUT\n");
+        state->err_ops++;
+        if (FLAGS_stop_on_error) {
+          break;
+        }
+      }
+      state->ops++;
+    }
+  }
+
+  static void DoPutKeyValues(ThreadState* const state) {
     RandomValueGenerator val(1 + state->id);
     const size_t vlen = state->t->vlen_;
     const uint64_t begin = state->id * state->ops_per_thread;
@@ -385,7 +404,7 @@ int main(int argc, char* argv[]) {
         break;
       case 'v':
         vlen = atoi(optarg);
-        if (vlen < 1) usage(argv[0], "bad v len");
+        if (vlen < 0) vlen = 0;
         break;
       case 't':
       case 'j':
@@ -401,10 +420,16 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  typedef KVTest<> KVTest0;
-  KVTest0 test(klen, vlen, n);
-  if (writes != 0) test.Run(KVTest0::DoPuts, j);
+  {
+    typedef KVTest<> KVTest0;
+    KVTest0 test(klen, vlen, n);
+    if (writes != 0) {
+      if (vlen != 0)
+        test.Run(KVTest0::DoPutKeyValues, j);
+      else
+        test.Run(KVTest0::DoPutKeys, j);
+    }
+  }
   fprintf(stdout, "Done!\n");
-
   return 0;
 }
