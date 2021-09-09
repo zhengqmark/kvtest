@@ -66,20 +66,27 @@
  */
 #include "fnv.h"
 
+#include <algorithm>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unordered_set>
+#include <vector>
 
 int main(int argc, char* argv[]) {
-  std::unordered_set<uint64_t> all_keys;
+  std::vector<uint64_t> all_keys;
   int64_t n = 100;
   if (argc > 1) {
     n = atoll(argv[1]);
   }
+  all_keys.reserve(n);
   for (int64_t i = 0; i < n; i++) {
-    all_keys.insert(FNVHash64(i));
+    all_keys.push_back(FNVHash64(i));
   }
-  fprintf(stderr, "Unique keys = %llu",
-          static_cast<unsigned long long>(all_keys.size()));
+  std::sort(all_keys.begin(), all_keys.end());
+  if (std::adjacent_find(all_keys.begin(), all_keys.end()) == all_keys.end()) {
+    fprintf(stderr, "Unique keys = %llu\n",
+            static_cast<unsigned long long>(all_keys.size()));
+  } else {
+    fprintf(stderr, "Found dups\n");
+  }
   return 0;
 }
