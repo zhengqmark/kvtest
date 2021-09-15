@@ -71,6 +71,7 @@
 
 #include <assert.h>
 #include <getopt.h>
+#include <signal.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -376,6 +377,11 @@ static void usage(char* argv0, const char* msg) {
   exit(EXIT_FAILURE);
 }
 
+static void sigint(int foo) {
+  fprintf(stderr, "SIGINT detected\n");
+  exit(1);
+}
+
 int main(int argc, char* argv[]) {
   int c;
   int writes = 0;
@@ -420,6 +426,7 @@ int main(int argc, char* argv[]) {
     }
   }
 
+  signal(SIGINT, sigint);
   {
     typedef KVTest<> KVTest0;
     KVTest0 test(klen, vlen, n);
